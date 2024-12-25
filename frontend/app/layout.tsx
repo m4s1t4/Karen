@@ -1,40 +1,93 @@
-import type { Metadata } from "next";
-import { Inter } from "next/font/google";
+"use client";
+
+import { ThemeProvider } from "@/components/theme-provider";
 import "./globals.css";
 import { Navbar } from "@/components/navbar";
-import { ThemeProvider } from "@/components/theme-provider";
+import { ChatSidebar } from "@/components/chat-sidebar";
+import { useState } from "react";
+import { ChatProvider, useChat } from "@/contexts/chat-context";
+import { cn } from "@/lib/utils";
+import { TooltipProvider } from "@/components/ui/tooltip";
 
-const inter = Inter({ subsets: ["latin"] });
+function LayoutContent({ children }: { children: React.ReactNode }) {
+  const [isSidebarOpen, setIsSidebarOpen] = useState(false);
+  const { currentChatId, setCurrentChat, startNewChat } = useChat();
 
-export const metadata: Metadata = {
-  title: "Karen - Tu Asistente Personal",
-  description:
-    "Un asistente personal inteligente que te ayuda con tus tareas diarias",
-};
+  const handleNewChat = () => {
+    startNewChat();
+    setIsSidebarOpen(false);
+  };
+
+  const handleSelectChat = (chatId: number) => {
+    setCurrentChat(chatId);
+    setIsSidebarOpen(false);
+  };
+
+  const handleDeleteChat = async (chatId: number) => {
+    try {
+      const response = await fetch(
+        `http://localhost:5000/api/assistant/chat/delete/${chatId}`,
+        {
+          method: "DELETE",
+        }
+      );
+
+      if (!response.ok) {
+        throw new Error("Error al eliminar el chat");
+      }
+
+      if (chatId === currentChatId) {
+        startNewChat();
+      }
+    } catch (error) {
+      console.error("Error:", error);
+    }
+  };
+
+  return (
+    <div className="flex h-screen flex-col">
+      <Navbar
+        onToggleSidebar={() => setIsSidebarOpen(true)}
+        onNewChat={handleNewChat}
+      />
+      <ChatSidebar
+        isOpen={isSidebarOpen}
+        onClose={() => setIsSidebarOpen(false)}
+        onSelectChat={handleSelectChat}
+        onDeleteChat={handleDeleteChat}
+        selectedChatId={currentChatId}
+      />
+      <main
+        className={cn(
+          "flex-col flex-grow overflow-hidden transition-[padding] duration-300",
+          isSidebarOpen && "pl-[300px]"
+        )}
+      >
+        {children}
+      </main>
+    </div>
+  );
+}
 
 export default function RootLayout({
   children,
-}: Readonly<{
+}: {
   children: React.ReactNode;
-}>) {
+}) {
   return (
     <html lang="es" suppressHydrationWarning>
-      <body className={inter.className}>
+      <body>
         <ThemeProvider
           attribute="class"
           defaultTheme="system"
           enableSystem
           disableTransitionOnChange
         >
-          <div className="min-h-screen flex flex-col">
-            <Navbar />
-            <main className="flex-1 container mx-auto px-4 py-8">
-              {children}
-            </main>
-            <footer className="border-t py-4 text-center text-sm text-muted-foreground">
-              © 2024 Karen Assistant. Todos los derechos reservados.
-            </footer>
-          </div>
+          <TooltipProvider>
+            <ChatProvider>
+              <LayoutContent>{children}</LayoutContent>
+            </ChatProvider>
+          </TooltipProvider>
         </ThemeProvider>
       </body>
     </html>
