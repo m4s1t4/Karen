@@ -1,0 +1,14 @@
+Flask
+supabase
+python-dotenv
+phidata
+openai
+duckduckgo-search
+newspaper3k
+PyGithub
+python-jose
+python-multipart
+uvicorn
+gunicorn
+asgiref
+flask-cors
