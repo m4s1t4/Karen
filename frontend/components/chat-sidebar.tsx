@@ -9,6 +9,8 @@ import { cn } from "@/lib/utils";
 interface Chat {
   id: number;
   created_at: string;
+  title: string;
+  description: string;
 }
 
 interface ChatSidebarProps {
@@ -60,28 +62,30 @@ export function ChatSidebar({
     <>
       {/* Overlay */}
       <div
-        className={cn(
-          "fixed inset-0 z-40 bg-background/80 backdrop-blur-sm",
-          isOpen ? "block" : "hidden"
-        )}
+        className={cn("fixed inset-0 z-40", isOpen ? "block" : "hidden")}
         onClick={onClose}
       />
       {/* Sidebar */}
       <div
         className={cn(
-          "fixed inset-y-0 left-0 z-50 flex w-[300px] flex-col border-r bg-background transition-transform duration-300 ease-in-out",
+          "fixed inset-y-0 left-0 z-50 flex w-[400px] flex-col bg-background/80 backdrop-blur-md backdrop-saturate-150 transition-transform duration-300 ease-in-out supports-[backdrop-filter]:bg-background/60",
           isOpen ? "translate-x-0" : "-translate-x-full"
         )}
       >
-        <div className="flex h-16 items-center justify-between border-b px-6">
+        <div className="flex h-14 items-center justify-between border-b border-border/40 px-4 backdrop-blur-sm">
           <h2 className="text-lg font-semibold">Mis Conversaciones</h2>
-          <Button variant="ghost" size="icon" onClick={onClose}>
+          <Button
+            variant="ghost"
+            size="icon"
+            onClick={onClose}
+            className="opacity-70 hover:opacity-100 rounded-full"
+          >
             <X className="h-4 w-4" />
             <span className="sr-only">Cerrar</span>
           </Button>
         </div>
-        <ScrollArea className="flex-1 px-4">
-          <div className="space-y-2 py-4">
+        <ScrollArea className="flex-1">
+          <div className="space-y-1.5 p-3">
             {chats.length === 0 ? (
               <p className="text-muted-foreground text-center py-4">
                 No hay conversaciones
@@ -91,29 +95,31 @@ export function ChatSidebar({
                 <div
                   key={chat.id}
                   className={cn(
-                    "flex items-center justify-between p-2 rounded-lg hover:bg-accent",
-                    selectedChatId === chat.id && "bg-accent"
+                    "group flex flex-col space-y-1 rounded-md p-2 hover:bg-accent/30 transition-colors cursor-pointer backdrop-blur-sm",
+                    selectedChatId === chat.id && "bg-accent/40"
                   )}
+                  onClick={() => onSelectChat(chat.id)}
                 >
-                  <Button
-                    variant="ghost"
-                    className="w-full justify-start"
-                    onClick={() => onSelectChat(chat.id)}
-                  >
-                    {`Chat ${chat.id}`}
-                  </Button>
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    className="shrink-0"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      handleDeleteChat(chat.id);
-                    }}
-                  >
-                    <Trash2 className="h-4 w-4" />
-                    <span className="sr-only">Eliminar chat</span>
-                  </Button>
+                  <div className="flex items-center justify-between gap-1">
+                    <span className="text-sm font-medium line-clamp-1 flex-1 px-1">
+                      {chat.title}
+                    </span>
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="h-6 w-6 shrink-0 opacity-0 group-hover:opacity-70 hover:opacity-100 transition-opacity"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handleDeleteChat(chat.id);
+                      }}
+                    >
+                      <Trash2 className="h-3.5 w-3.5" />
+                      <span className="sr-only">Eliminar chat</span>
+                    </Button>
+                  </div>
+                  <p className="text-xs text-muted-foreground/80 line-clamp-1 px-1">
+                    {chat.description}
+                  </p>
                 </div>
               ))
             )}

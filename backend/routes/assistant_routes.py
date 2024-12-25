@@ -1,64 +1,75 @@
 from flask import Blueprint, request, jsonify
-from db.supabase_utils import supabase_manager
-from agents.assistant import assistant
+from agents.assistant import Assistant
+from db.supabase_utils import supabase
 
-assistant_bp = Blueprint('assistant', __name__)
+assistant_bp = Blueprint("assistant", __name__)
+assistant = Assistant()
 
-@assistant_bp.route('/chat/start', methods=['POST'])
+@assistant_bp.route("/chat/start", methods=["POST"])
 def start_chat():
     """Inicia una nueva sesión de chat"""
     try:
-        # Crear una nueva sesión en la base de datos
-        session_id = supabase_manager.create_chat_session()
-        return jsonify({"session_id": session_id})
+        # Ya no creamos la sesión aquí, se creará cuando se envíe el primer mensaje
+        return jsonify({"message": "Envía un mensaje para iniciar el chat"})
     except Exception as e:
-        print(f"❌ Error al iniciar sesión: {str(e)}")
-        return jsonify({"error": str(e), "traceback": str(e.__traceback__)}), 500
+        print(f"Error al iniciar sesión: {e}")
+        return jsonify({"error": str(e)}), 500
 
-@assistant_bp.route('/chat/message', methods=['POST'])
+@assistant_bp.route("/chat/message", methods=["POST"])
 def send_message():
-    """Procesa un mensaje del usuario y obtiene una respuesta"""
+    """Envía un mensaje al asistente"""
     try:
         data = request.json
-        if not data or 'message' not in data or 'session_id' not in data:
-            return jsonify({"error": "Se requiere mensaje y session_id"}), 400
+        message = data.get("message")
+        session_id = data.get("session_id")
 
-        message = data['message']
-        session_id = data['session_id']
+        if not message:
+            return jsonify({"error": "Mensaje no proporcionado"}), 400
 
-        # Procesar el mensaje y obtener respuesta
-        response = assistant.process_message(message, session_id)
-        return jsonify({"response": response})
+        # Procesar el mensaje
+        result = assistant.process_message(message, session_id)
+        return jsonify(result)
     except Exception as e:
-        print(f"❌ Error al procesar mensaje: {str(e)}")
+        print(f"Error al procesar mensaje: {e}")
         return jsonify({"error": str(e)}), 500
 
-@assistant_bp.route('/chat/history/<int:session_id>', methods=['GET'])
+@assistant_bp.route("/chat/history/<int:session_id>", methods=["GET"])
 def get_chat_history(session_id):
-    """Obtiene el historial de mensajes de una sesión"""
+    """Obtiene el historial de mensajes de un chat"""
     try:
-        messages = supabase_manager.get_chat_history(session_id)
-        return jsonify(messages)
+        response = supabase.table("messages") \
+            .select("role,content,created_at") \
+            .eq("chat_session_id", session_id) \
+            .order("created_at") \
+            .execute()
+        return jsonify(response.data)
     except Exception as e:
-        print(f"❌ Error al obtener historial: {str(e)}")
+        print(f"Error al obtener historial: {e}")
         return jsonify({"error": str(e)}), 500
 
-@assistant_bp.route('/chat/list', methods=['GET'])
+@assistant_bp.route("/chat/list", methods=["GET"])
 def list_chats():
-    """Obtiene la lista de sesiones de chat"""
+    """Lista todas las sesiones de chat"""
     try:
-        chats = supabase_manager.list_chat_sessions()
-        return jsonify(chats)
+        response = supabase.table("chat_sessions") \
+            .select("id,title,description,created_at") \
+            .order("created_at", desc=True) \
+            .execute()
+        return jsonify(response.data)
     except Exception as e:
-        print(f"❌ Error al listar chats: {str(e)}")
+        print(f"Error al listar chats: {e}")
         return jsonify({"error": str(e)}), 500
 
-@assistant_bp.route('/chat/delete/<int:session_id>', methods=['DELETE'])
+@assistant_bp.route("/chat/delete/<int:session_id>", methods=["DELETE"])
 def delete_chat(session_id):
-    """Elimina una sesión de chat"""
+    """Elimina un chat y sus mensajes"""
     try:
-        supabase_manager.delete_chat_session(session_id)
-        return jsonify({"message": "Chat eliminado correctamente"})
+        # Los mensajes se eliminarán automáticamente por la restricción ON DELETE CASCADE
+        supabase.table("chat_sessions") \
+            .delete() \
+            .eq("id", session_id) \
+            .execute()
+        return jsonify({"success": True})
     except Exception as e:
-        print(f"❌ Error al eliminar chat: {str(e)}")
+        print(f"Error al eliminar chat: {e}")
         return jsonify({"error": str(e)}), 500 

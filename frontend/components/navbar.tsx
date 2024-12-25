@@ -16,11 +16,21 @@ export function Navbar({ onToggleSidebar, onNewChat }: NavbarProps) {
       <div className="container mx-auto py-3">
         <nav className="flex items-center justify-between">
           <div className="flex items-center">
-            <Button variant="ghost" size="icon" onClick={onToggleSidebar}>
+            <Button
+              variant="ghost"
+              size="icon"
+              onClick={onToggleSidebar}
+              className="rounded-full"
+            >
               <Menu className="h-5 w-5" />
               <span className="sr-only">Abrir menú</span>
             </Button>
-            <Button variant="default" size="icon" onClick={onNewChat}>
+            <Button
+              variant="ghost"
+              size="icon"
+              onClick={onNewChat}
+              className="rounded-full"
+            >
               <Plus className="h-5 w-5" />
               <span className="sr-only">Nuevo chat</span>
             </Button>
