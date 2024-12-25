@@ -23,9 +23,9 @@ class Assistant:
             
             # Obtener respuesta de OpenAI
             response = self.client.chat.completions.create(
-                model="gpt-3.5-turbo",
+                model="gpt-4o",
                 messages=[{"role": m["role"], "content": m["content"]} for m in messages],
-                temperature=0.7
+                temperature=0
             )
             
             assistant_message = response.choices[0].message.content
