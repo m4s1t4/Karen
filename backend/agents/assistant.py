@@ -2,6 +2,7 @@ from openai import OpenAI
 from config import Config
 from db.supabase_utils import supabase
 from .chat_summarizer import ChatSummarizer
+from agents.prompts.main_prompt import orchestrator
 
 class Assistant:
     def __init__(self):
@@ -11,14 +12,16 @@ class Assistant:
     def process_message(self, message: str, session_id: int) -> str:
         """Procesa un mensaje del usuario y retorna la respuesta del asistente."""
         try:
-            # Obtener el historial de mensajes si existe un session_id
             messages = []
+            
+            # Obtener el historial de mensajes si existe un session_id
             is_new_chat = session_id is None
             
             if not is_new_chat:
                 messages = self._get_chat_history(session_id)
             
-            # Agregar el nuevo mensaje del usuario a la lista temporal
+            # Agregar el prompt del sistema y el mensaje del usuario
+            messages = [{"role": "system", "content": orchestrator}] + messages
             messages.append({"role": "user", "content": message})
             
             # Obtener respuesta de OpenAI

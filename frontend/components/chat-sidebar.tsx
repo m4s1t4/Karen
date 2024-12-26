@@ -72,7 +72,7 @@ export function ChatSidebar({
           isOpen ? "translate-x-0" : "-translate-x-full"
         )}
       >
-        <div className="flex h-14 items-center justify-between border-b border-border/40 px-4 backdrop-blur-sm">
+        <div className="flex h-14 items-center justify-between px-4 backdrop-blur-sm">
           <h2 className="text-lg font-semibold">Mis Conversaciones</h2>
           <Button
             variant="ghost"
