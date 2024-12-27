@@ -162,8 +162,11 @@ export function FileUploadButton({
       }
 
       toast({
-        title: "Éxito",
-        description: "Archivo procesado correctamente",
+        title: "¡Archivo subido!",
+        description: "El archivo PDF ha sido procesado y está listo para usar",
+        variant: "success",
+        duration: 3000,
+        className: "bg-green-50 border-green-200",
       });
 
       // Esperar un momento antes de resetear el progreso
@@ -211,11 +214,17 @@ export function FileUploadButton({
             disabled={disabled || isUploading}
           >
             {isUploading ? (
-              <div className="relative">
-                <Loader2 className="h-5 w-5 animate-spin" />
-                <div className="absolute inset-0 flex items-center justify-center text-[8px] font-medium">
-                  {uploadProgress}%
-                </div>
+              <div className="relative flex items-center justify-center">
+                <Loader2
+                  className="animate-spin transition-all duration-1000 ease-in-out"
+                  style={{
+                    width: `${Math.max(20, (uploadProgress / 100) * 20 + 2)}px`,
+                    height: `${Math.max(
+                      20,
+                      (uploadProgress / 100) * 20 + 2
+                    )}px`,
+                  }}
+                />
               </div>
             ) : (
               <Paperclip className="h-5 w-5" />

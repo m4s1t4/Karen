@@ -29,10 +29,10 @@ dotenv.load_dotenv()
 
 # Configuración de parámetros optimizados
 CHUNK_SIZE = 1000  # Tamaño de chunk para embeddings
-BATCH_SIZE = 500   # Aumentado para menos llamadas a Supabase
+BATCH_SIZE = 800   # Aumentado para menos llamadas a Supabase
 MAX_WORKERS = 8    # Más workers para mejor paralelismo
-EMBEDDING_MODEL = "text-embedding-ada-002"  # Modelo con 1536 dimensiones
-EMBEDDING_BATCH_SIZE = 100  # Aumentado para menos llamadas a la API
+EMBEDDING_MODEL = "text-embedding-3-large"  # Modelo con 1536 dimensiones
+EMBEDDING_BATCH_SIZE = 500  # Aumentado para menos llamadas a la API
 MAX_RETRIES = 3    # Número máximo de reintentos
 
 # Configurar Supabase
@@ -133,7 +133,7 @@ def store_chunks_in_supabase(chunks: List[Dict], chat_id: int) -> Tuple[int, int
     """Almacena los chunks en Supabase de forma optimizada."""
     successful = 0
     retries = 0
-    batch_size = 100  # Reducir el tamaño del lote para evitar timeouts
+    batch_size = 500  # Reducir el tamaño del lote para evitar timeouts
     
     try:
         # Dividir en lotes más pequeños
@@ -181,7 +181,7 @@ def store_chunks_in_supabase(chunks: List[Dict], chat_id: int) -> Tuple[int, int
 class OptimizedRAG:
     def __init__(self):
         self.llm = ChatOpenAI(
-            model="gpt-4",
+            model="gpt-4o",
             temperature=0
         )
     

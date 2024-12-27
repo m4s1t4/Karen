@@ -155,7 +155,7 @@ class Assistant:
                 Si no hay contexto o la información no está en el contexto, responde basándote en tu conocimiento general.
                 
                 IMPORTANTE: 
-                1. Si utilizas información del contexto, debes citar la fuente usando [Chunk X] donde X es el número del chunk del que obtuviste la información.
+                1. Si utilizas información del contexto, debes citar la fuente usando [X] donde X es el número del chunk del que obtuviste la información.
                 2. Debes citar TODOS los chunks que uses en tu respuesta.
                 3. Las citas deben ir inmediatamente después de cada afirmación que hagas usando información de los chunks.
                 4. Estructura tu respuesta en párrafos claros y concisos.
@@ -211,13 +211,13 @@ class Assistant:
                 
                 # Obtener los chunks citados en la respuesta
                 import re
-                cited_chunks = set(re.findall(r'\[Chunk (\d+)\]', response))
+                cited_chunks = set(re.findall(r'\[(\d+)\]', response))
                 
                 for chunk_num in cited_chunks:
                     chunk_idx = int(chunk_num) - 1
                     if chunk_idx < len(references):
                         ref = references[chunk_idx]
-                        source_info = f"\n[Chunk {ref['chunk']}]"
+                        source_info = f"\n[{ref['chunk']}]"
                         if ref['metadata'].get('page'):
                             source_info += f" (Página {ref['metadata']['page']})"
                         source_info += f":\n{ref['content']}\n"
