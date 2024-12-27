@@ -2,7 +2,7 @@ import os
 import time
 import logging
 from pathlib import Path
-from typing import List, Dict, Any
+from typing import List, Dict, Any, Tuple
 from functools import lru_cache
 from concurrent.futures import ThreadPoolExecutor, as_completed
 import tenacity
@@ -129,162 +129,54 @@ def process_chunks_in_batches(chunks: List[Document]) -> List[Dict]:
     
     return all_data
 
-def load_documents(path: str = str(SCRIPT_DIR / "Knowledge")) -> List[Document]:
-    """Carga documentos con logging mejorado."""
-    logger.info(f"Cargando documentos desde: {path}")
-    start_time = time.time()
+def store_chunks_in_supabase(chunks: List[Dict], chat_id: int) -> Tuple[int, int]:
+    """Almacena los chunks en Supabase de forma optimizada."""
+    successful = 0
+    retries = 0
+    batch_size = 100  # Reducir el tamaño del lote para evitar timeouts
     
-    loader = PyPDFDirectoryLoader(path)
-    documents = loader.load()
-    
-    duration = time.time() - start_time
-    logger.info(f"Cargados {len(documents)} documentos en {duration:.2f}s")
-    return documents
-
-def split_documents(documents: List[Document]) -> List[Document]:
-    """División optimizada de documentos con mejor manejo de memoria."""
-    logger.info("Iniciando división de documentos")
-    start_time = time.time()
-    
-    splitter = RecursiveCharacterTextSplitter(
-        chunk_size=500,
-        chunk_overlap=50,
-        length_function=len,
-        separators=["\n\n", "\n", ".", "!", "?", ",", " ", ""]
-    )
-    
-    chunks = []
-    for doc in tqdm(documents, desc="Dividiendo documentos"):
-        splits = splitter.split_text(doc.page_content)
-        chunks.extend([
-            Document(
-                page_content=split,
-                metadata={
-                    **doc.metadata,
-                    "chunk_index": i,
-                    "total_chunks": len(splits)
-                }
-            ) for i, split in enumerate(splits)
-        ])
-    
-    duration = time.time() - start_time
-    logger.info(f"Documentos divididos en {len(chunks)} chunks en {duration:.2f}s")
-    return chunks
-
-def store_in_supabase(chunks: List[Document]):
-    """Almacena documentos en Supabase con inserción en lotes optimizada."""
-    logger.info("Almacenando documentos en Supabase")
-    start_time = time.time()
-    
-    # Procesar chunks en paralelo
-    data = process_chunks_in_batches(chunks)
-    
-    if not data:
-        logger.error("No hay datos válidos para almacenar")
-        return
-    
-    total_items = len(data)
-    successful_inserts = 0
-    retry_count = 0
-    
-    # Insertar en lotes grandes con progreso y reintentos
-    with tqdm(
-        total=total_items,
-        desc="Insertando en Supabase"
-    ) as pbar:
-        for i in range(0, total_items, BATCH_SIZE):
-            batch = data[i:i + BATCH_SIZE]
-            success = False
-            attempts = 0
-            
-            while not success and attempts < MAX_RETRIES:
-                try:
-                    # Verificar dimensiones antes de insertar
-                    if any(len(item["embedding"]) != 1536 for item in batch):
-                        logger.error(f"Dimensiones incorrectas en lote {i//BATCH_SIZE}")
-                        break
-                    
-                    # Insertar usando la sintaxis correcta de Supabase
-                    response = supabase.table("documents").insert(
-                        batch,
-                        returning="minimal",  # Solo retorna IDs
-                        count="exact"  # Obtener conteo exacto
-                    ).execute()
-                    
-                    if hasattr(response, 'error') and response.error is not None:
-                        raise Exception(f"Error de Supabase: {response.error}")
-                    
-                    successful_inserts += len(batch)
-                    pbar.update(len(batch))
-                    success = True
-                    
-                except Exception as e:
-                    attempts += 1
-                    retry_count += 1
-                    if attempts < MAX_RETRIES:
-                        logger.warning(f"Reintento {attempts} para lote {i//BATCH_SIZE}: {e}")
-                        time.sleep(2 ** attempts)  # Espera exponencial
-                    else:
-                        logger.error(f"Error insertando lote {i//BATCH_SIZE} después de {MAX_RETRIES} intentos: {e}")
-    
-    duration = time.time() - start_time
-    logger.info(
-        f"Documentos almacenados en {duration:.2f}s. "
-        f"Exitosos: {successful_inserts}/{total_items} ({successful_inserts/total_items*100:.1f}%). "
-        f"Reintentos: {retry_count}"
-    )
-
-@tenacity.retry(
-    wait=tenacity.wait_exponential(multiplier=1, min=4, max=10),
-    stop=tenacity.stop_after_attempt(5),
-    retry=tenacity.retry_if_exception_type(Exception)
-)
-def search_similar(query: str, top_k: int = 5) -> List[Dict]:
-    """Búsqueda semántica optimizada."""
     try:
-        # Intentar obtener embedding desde cache
-        try:
-            query_embedding = get_cached_embedding(query)
+        # Dividir en lotes más pequeños
+        for i in range(0, len(chunks), batch_size):
+            batch = chunks[i:i + batch_size]
+            documents = []
             
-            # Verificar dimensiones
-            if len(query_embedding) != 1536:
-                raise ValueError("Dimensiones de embedding incorrectas")
-                
-        except Exception:
-            # Si falla el cache, usar método normal
-            embeddings = OpenAIEmbeddings(
-                model=EMBEDDING_MODEL,
-                chunk_size=EMBEDDING_BATCH_SIZE
-            )
-            query_embedding = embeddings.embed_query(query)
-        
-        # Verificar que el embedding sea una lista de floats
-        if not isinstance(query_embedding, list) or not all(isinstance(x, float) for x in query_embedding):
-            raise ValueError("Embedding debe ser una lista de floats")
+            for chunk in batch:
+                doc = {
+                    "content": chunk["content"],
+                    "metadata": chunk["metadata"],
+                    "embedding": chunk["embedding"],
+                    "chat_id": chat_id
+                }
+                documents.append(doc)
             
-        # Verificar longitud del embedding
-        if len(query_embedding) != 1536:
-            raise ValueError(f"Embedding debe tener 1536 dimensiones, tiene {len(query_embedding)}")
-        
-        # Llamar a la función match_documents
-        result = supabase.rpc(
-            'match_documents',
-            {
-                'query_embedding': query_embedding,
-                'match_threshold': 0.7,
-                'match_count': top_k
-            }
-        ).execute()
-        
-        if hasattr(result, 'error') and result.error is not None:
-            logger.error(f"Error en match_documents: {result.error}")
-            raise Exception(f"Error en match_documents: {result.error}")
+            # Intentar insertar con reintentos
+            max_retries = 3
+            retry_count = 0
+            while retry_count < max_retries:
+                try:
+                    result = supabase.table("documents").insert(documents).execute()
+                    if not result.data:
+                        raise Exception("No se recibió confirmación de inserción")
+                    successful += len(documents)
+                    break
+                except Exception as e:
+                    retry_count += 1
+                    retries += 1
+                    logger.warning(f"Reintento {retry_count} para lote {i//batch_size + 1}: {str(e)}")
+                    if retry_count == max_retries:
+                        logger.error(f"Error insertando lote {i//batch_size + 1} después de {max_retries} intentos: {str(e)}")
+                    else:
+                        time.sleep(2 ** retry_count)  # Espera exponencial entre reintentos
             
-        return result.data if result.data else []
+            # Pequeña pausa entre lotes para evitar sobrecarga
+            time.sleep(0.5)
+            
+        return successful, retries
         
     except Exception as e:
-        logger.error(f"Error en búsqueda semántica: {str(e)}")
-        raise
+        logger.error(f"Error almacenando chunks: {str(e)}")
+        return successful, retries
 
 class OptimizedRAG:
     def __init__(self):
@@ -292,6 +184,151 @@ class OptimizedRAG:
             model="gpt-4",
             temperature=0
         )
+    
+    def load_documents(self, file_path: str) -> List[Document]:
+        """Carga un documento individual con logging mejorado."""
+        logger.info(f"Cargando documento: {file_path}")
+        start_time = time.time()
+        
+        try:
+            # Cargar solo el archivo especificado
+            loader = PyPDFDirectoryLoader(str(Path(file_path).parent))
+            all_documents = loader.load()
+            
+            # Filtrar para obtener solo el archivo deseado
+            documents = [
+                doc for doc in all_documents 
+                if Path(doc.metadata["source"]).name == Path(file_path).name
+            ]
+            
+            if not documents:
+                raise FileNotFoundError(f"No se pudo cargar el archivo: {file_path}")
+            
+            duration = time.time() - start_time
+            logger.info(f"Documento cargado en {duration:.2f}s")
+            return documents
+            
+        except Exception as e:
+            logger.error(f"Error cargando documento {file_path}: {e}")
+            raise
+
+    def split_documents(self, documents: List[Document]) -> List[Document]:
+        """División optimizada de documentos."""
+        logger.info("Iniciando división de documento")
+        start_time = time.time()
+        
+        try:
+            splitter = RecursiveCharacterTextSplitter(
+                chunk_size=500,
+                chunk_overlap=50,
+                length_function=len,
+                separators=["\n\n", "\n", ".", "!", "?", ",", " ", ""]
+            )
+            
+            chunks = []
+            for doc in documents:
+                splits = splitter.split_text(doc.page_content)
+                chunks.extend([
+                    Document(
+                        page_content=split,
+                        metadata={
+                            **doc.metadata,
+                            "chunk_index": i,
+                            "total_chunks": len(splits)
+                        }
+                    ) for i, split in enumerate(splits)
+                ])
+            
+            duration = time.time() - start_time
+            logger.info(f"Documento dividido en {len(chunks)} chunks en {duration:.2f}s")
+            return chunks
+            
+        except Exception as e:
+            logger.error(f"Error dividiendo documento: {e}")
+            raise
+
+    def store_in_supabase(self, chunks: List[Document], chat_id: int):
+        """Almacena documentos en Supabase con relación al chat."""
+        logger.info(f"Almacenando chunks en Supabase para el chat {chat_id}")
+        start_time = time.time()
+        
+        try:
+            # Procesar chunks en paralelo
+            data = process_chunks_in_batches(chunks)
+            
+            if not data:
+                logger.error("No hay datos válidos para almacenar")
+                return
+            
+            # Agregar chat_id a cada documento
+            for item in data:
+                item["chat_id"] = chat_id
+            
+            total_items = len(data)
+            successful_inserts = 0
+            retry_count = 0
+            
+            # Reducir el tamaño del lote y aumentar el tiempo entre reintentos
+            BATCH_SIZE = 50  # Lotes más pequeños
+            MAX_RETRIES = 5  # Más intentos
+            
+            # Insertar en lotes con progreso y reintentos
+            with tqdm(total=total_items, desc="Insertando en Supabase") as pbar:
+                for i in range(0, total_items, BATCH_SIZE):
+                    batch = data[i:i + BATCH_SIZE]
+                    success = False
+                    attempts = 0
+                    
+                    while not success and attempts < MAX_RETRIES:
+                        try:
+                            # Dividir el lote en sub-lotes más pequeños
+                            SUB_BATCH_SIZE = 10
+                            for j in range(0, len(batch), SUB_BATCH_SIZE):
+                                sub_batch = batch[j:j + SUB_BATCH_SIZE]
+                                response = supabase.table("documents").insert(
+                                    sub_batch,
+                                    returning="minimal",
+                                    count="exact"
+                                ).execute()
+                                
+                                if hasattr(response, 'error') and response.error is not None:
+                                    raise Exception(f"Error de Supabase: {response.error}")
+                                
+                                successful_inserts += len(sub_batch)
+                                pbar.update(len(sub_batch))
+                                
+                                # Pausa entre sub-lotes
+                                time.sleep(0.5)
+                            
+                            success = True
+                            
+                        except Exception as e:
+                            attempts += 1
+                            retry_count += 1
+                            if attempts < MAX_RETRIES:
+                                wait_time = min(30, 2 ** (attempts + 2))  # Máximo 30 segundos
+                                logger.warning(f"Reintento {attempts} para lote {i//BATCH_SIZE + 1}: {e}")
+                                logger.info(f"Esperando {wait_time} segundos antes del siguiente intento...")
+                                time.sleep(wait_time)
+                            else:
+                                logger.error(f"Error insertando lote {i//BATCH_SIZE + 1} después de {MAX_RETRIES} intentos: {e}")
+                                # Continuar con el siguiente lote en lugar de fallar completamente
+                                break
+                    
+                    # Pausa entre lotes principales
+                    time.sleep(1)
+            
+            duration = time.time() - start_time
+            success_rate = (successful_inserts/total_items*100) if total_items > 0 else 0
+            logger.info(
+                f"Chunks almacenados en {duration:.2f}s. "
+                f"Exitosos: {successful_inserts}/{total_items} ({success_rate:.1f}%). "
+                f"Reintentos: {retry_count}"
+            )
+            
+        except Exception as e:
+            logger.error(f"Error almacenando chunks: {e}")
+            raise
     
     async def upload_file_to_supabase(self, file_path: str, chat_id: int) -> str:
         """Sube un archivo a Supabase Storage y retorna su URL."""
@@ -330,64 +367,6 @@ class OptimizedRAG:
             logger.error(f"Error subiendo archivo a Supabase: {e}")
             raise
     
-    def store_in_supabase(self, chunks: List[Document], chat_id: int):
-        """Almacena documentos en Supabase con relación al chat."""
-        logger.info("Almacenando documentos en Supabase")
-        start_time = time.time()
-        
-        # Procesar chunks en paralelo
-        data = process_chunks_in_batches(chunks)
-        
-        if not data:
-            logger.error("No hay datos válidos para almacenar")
-            return
-        
-        # Agregar chat_id a cada documento
-        for item in data:
-            item["chat_id"] = chat_id
-        
-        total_items = len(data)
-        successful_inserts = 0
-        retry_count = 0
-        
-        # Insertar en lotes grandes con progreso y reintentos
-        with tqdm(total=total_items, desc="Insertando en Supabase") as pbar:
-            for i in range(0, total_items, BATCH_SIZE):
-                batch = data[i:i + BATCH_SIZE]
-                success = False
-                attempts = 0
-                
-                while not success and attempts < MAX_RETRIES:
-                    try:
-                        response = supabase.table("documents").insert(
-                            batch,
-                            returning="minimal",
-                            count="exact"
-                        ).execute()
-                        
-                        if hasattr(response, 'error') and response.error is not None:
-                            raise Exception(f"Error de Supabase: {response.error}")
-                        
-                        successful_inserts += len(batch)
-                        pbar.update(len(batch))
-                        success = True
-                        
-                    except Exception as e:
-                        attempts += 1
-                        retry_count += 1
-                        if attempts < MAX_RETRIES:
-                            logger.warning(f"Reintento {attempts} para lote {i//BATCH_SIZE}: {e}")
-                            time.sleep(2 ** attempts)
-                        else:
-                            logger.error(f"Error insertando lote {i//BATCH_SIZE} después de {MAX_RETRIES} intentos: {e}")
-        
-        duration = time.time() - start_time
-        logger.info(
-            f"Documentos almacenados en {duration:.2f}s. "
-            f"Exitosos: {successful_inserts}/{total_items} ({successful_inserts/total_items*100:.1f}%). "
-            f"Reintentos: {retry_count}"
-        )
-    
     async def process_file(self, file_path: str, chat_id: int):
         """Procesa un archivo y lo almacena en Supabase."""
         try:
@@ -398,7 +377,7 @@ class OptimizedRAG:
             file_url = await self.upload_file_to_supabase(file_path, chat_id)
             
             # Cargar y procesar documento
-            documents = load_documents(str(Path(file_path).parent))
+            documents = self.load_documents(str(Path(file_path).parent))
             documents = [
                 doc for doc in documents 
                 if Path(doc.metadata["source"]).name == Path(file_path).name
@@ -413,7 +392,7 @@ class OptimizedRAG:
                 doc.metadata["chat_id"] = chat_id
             
             # Dividir en chunks y almacenar
-            chunks = split_documents(documents)
+            chunks = self.split_documents(documents)
             self.store_in_supabase(chunks, chat_id)
             
             duration = time.time() - start_time

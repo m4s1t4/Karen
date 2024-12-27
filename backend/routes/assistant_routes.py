@@ -96,9 +96,16 @@ async def upload_file():
             
         if not file.filename.lower().endswith(".pdf"):
             return jsonify({"error": "Solo se permiten archivos PDF"}), 400
-            
+        
+        # Si no hay chat_id, crear una nueva sesión
         if not chat_id:
-            return jsonify({"error": "No se proporcionó el ID del chat"}), 400
+            response = supabase.table("chat_sessions").insert({
+                "title": f"Chat con {file.filename}",
+                "description": "Chat iniciado con documento"
+            }).execute()
+            chat_id = response.data[0]["id"]
+        else:
+            chat_id = int(chat_id)
         
         # Crear directorio temporal si no existe
         temp_dir = Path(__file__).parent.parent / "temp"
@@ -111,11 +118,18 @@ async def upload_file():
         try:
             # Procesar archivo con RAG
             rag = OptimizedRAG()
-            file_url = await rag.process_file(str(temp_file), int(chat_id))
+            
+            # Procesar el archivo directamente sin subirlo a Storage
+            logger.info(f"Procesando archivo {file.filename} para el chat {chat_id}")
+            documents = rag.load_documents(str(temp_file))
+            chunks = rag.split_documents(documents)
+            
+            # Almacenar chunks en la base de datos
+            rag.store_in_supabase(chunks, chat_id)
             
             return jsonify({
                 "message": "Archivo procesado exitosamente",
-                "file_url": file_url
+                "chat_id": chat_id
             }), 200
             
         finally:
