@@ -94,7 +94,7 @@ class Assistant:
     def __init__(self):
         self.llm = ChatOpenAI(
             model="gpt-4o",
-            temperature=0
+            temperature=0.3
         )
         self.current_chat_id = None
         self.rules = orchestrator
