@@ -12,3 +12,16 @@ uvicorn
 gunicorn
 asgiref
 flask-cors
+langchain-openai 
+langchain 
+langchain-community 
+langchain-text-splitters 
+langchain-core 
+langchain-experimental
+pypdf
+chromadb
+tiktoken
+psycopg2-binary
+pandas
+tenacity
+tqdm

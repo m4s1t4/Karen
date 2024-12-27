@@ -1,6 +1,13 @@
 from flask import Blueprint, request, jsonify
 from agents.assistant import Assistant
 from db.supabase_utils import supabase
+from werkzeug.utils import secure_filename
+import os
+from pathlib import Path
+import logging
+from rag.optimized_rag import OptimizedRAG
+
+logger = logging.getLogger(__name__)
 
 assistant_bp = Blueprint("assistant", __name__)
 assistant = Assistant()
@@ -72,4 +79,50 @@ def delete_chat(session_id):
         return jsonify({"success": True})
     except Exception as e:
         print(f"Error al eliminar chat: {e}")
+        return jsonify({"error": str(e)}), 500
+
+@assistant_bp.route("/upload", methods=["POST"])
+async def upload_file():
+    """Maneja la subida de archivos PDF y los procesa con RAG"""
+    try:
+        if "file" not in request.files:
+            return jsonify({"error": "No se envió ningún archivo"}), 400
+            
+        file = request.files["file"]
+        chat_id = request.form.get("chat_id")
+        
+        if file.filename == "":
+            return jsonify({"error": "No se seleccionó ningún archivo"}), 400
+            
+        if not file.filename.lower().endswith(".pdf"):
+            return jsonify({"error": "Solo se permiten archivos PDF"}), 400
+            
+        if not chat_id:
+            return jsonify({"error": "No se proporcionó el ID del chat"}), 400
+        
+        # Crear directorio temporal si no existe
+        temp_dir = Path(__file__).parent.parent / "temp"
+        temp_dir.mkdir(parents=True, exist_ok=True)
+        
+        # Guardar archivo temporalmente
+        temp_file = temp_dir / secure_filename(file.filename)
+        file.save(str(temp_file))
+        
+        try:
+            # Procesar archivo con RAG
+            rag = OptimizedRAG()
+            file_url = await rag.process_file(str(temp_file), int(chat_id))
+            
+            return jsonify({
+                "message": "Archivo procesado exitosamente",
+                "file_url": file_url
+            }), 200
+            
+        finally:
+            # Limpiar archivo temporal
+            if temp_file.exists():
+                temp_file.unlink()
+        
+    except Exception as e:
+        logger.error(f"Error en upload_file: {e}")
         return jsonify({"error": str(e)}), 500 
