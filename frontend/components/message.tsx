@@ -1,17 +1,15 @@
 "use client";
-
-import React from "react";
 import { MemoizedReactMarkdown } from "@/components/ui/markdown";
 import rehypeExternalLinks from "rehype-external-links";
 import remarkGfm from "remark-gfm";
 import remarkMath from "remark-math";
 import rehypeKatex from "rehype-katex";
 import "katex/dist/katex.min.css";
-import { CodeBlock } from "@/components/ui/codeblock";
+import { Code } from "@/components/ui/codeblock";
 
 export function BotMessage({ content }: { content: string }) {
-  const containsLaTeX = /\\\[([\s\S]*?)\\\]|\\\(([\s\S]*?)\\\)/.test(
-    content || ""
+  const containsLaTeX = /\\\[([\s\S]*?)\\\]|\\$$([\s\S]*?)\\$$/.test(
+    content || "",
   );
 
   // Check if the content is HTML
@@ -52,14 +50,37 @@ export function BotMessage({ content }: { content: string }) {
                 {...props}
               />
             ),
-            p: ({ children }) => {
+            // p: ({ children }) => {
+            //   return (
+            //     <p className="text-base text-neutral-700 dark:text-neutral-300 leading-relaxed mb-4 ml-4">
+            //       {children}
+            //     </p>
+            //   );
+            // },
+            p: ({ node, children, ...props }) => {
+              // Revisamos si en el array de hijos hay un "code" o "pre"
+              const hasBlockElement =
+                Array.isArray(node.children) &&
+                node.children.some(
+                  (child: any) =>
+                    child.tagName === "pre" || child.tagName === "code",
+                );
+
+              // Si detecta un bloque de código, no envuelvas en <p>
+              if (hasBlockElement) {
+                return <>{children}</>;
+              }
+
               return (
-                <p className="text-base text-neutral-700 dark:text-neutral-300 leading-relaxed mb-4 ml-4">
+                <p
+                  className="text-base text-neutral-700 dark:text-neutral-300 leading-relaxed mb-4 ml-4"
+                  {...props}
+                >
                   {children}
                 </p>
               );
             },
-            pre: ({ children }) => children,
+
             code({ node, inline, className, children, ...props }) {
               const content = Array.isArray(children)
                 ? children.join("")
@@ -84,12 +105,9 @@ export function BotMessage({ content }: { content: string }) {
 
               return (
                 <div className="mb-4">
-                  <CodeBlock
-                    key={Math.random()}
-                    language={(match && match[1]) || ""}
-                    value={processedContent.replace(/\n$/, "")}
-                    {...props}
-                  />
+                  <Code language={(match && match[1]) || ""}>
+                    {processedContent.replace(/\n$/, "")}
+                  </Code>
                 </div>
               );
             },
@@ -130,11 +148,11 @@ export function BotMessage({ content }: { content: string }) {
 const preprocessLaTeX = (content: string) => {
   const blockProcessedContent = content.replace(
     /\\\[([\s\S]*?)\\\]/g,
-    (_, equation) => `$$${equation}$$`
+    (_, equation) => `$$${equation}$$`,
   );
   const inlineProcessedContent = blockProcessedContent.replace(
-    /\\\(([\s\S]*?)\\\)/g,
-    (_, equation) => `$${equation}$`
+    /\\$$([\s\S]*?)\\$$/g,
+    (_, equation) => `$${equation}$`,
   );
   return inlineProcessedContent;
 };
