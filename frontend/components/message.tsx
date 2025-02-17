@@ -24,7 +24,7 @@ export function BotMessage({ content }: { content: string }) {
   const processedData = preprocessLaTeX(processedContent || "");
 
   return (
-    <div className="max-w-3xl mx-auto">
+    <div className="max-w-6xl mx-auto">
       <div className="px-4 py-6">
         <MemoizedReactMarkdown
           remarkPlugins={[remarkGfm, remarkMath]}
@@ -58,26 +58,26 @@ export function BotMessage({ content }: { content: string }) {
             //     </p>
             //   );
             // },
-            p: ({ children, ...props }) => {
-              // Verificar si alguno de los hijos es un elemento <pre> (o un componente que renderiza <pre>)
-              const shouldFragment = React.Children.toArray(children).some(child =>
-                React.isValidElement(child) && child.type === "pre"
-              );
-
-              if (shouldFragment) {
-                return <>{children}</>;
-              }
-
-              return (
-                <p
-                  className="text-base text-neutral-700 dark:text-neutral-300 leading-relaxed mb-4 ml-4"
-                  {...props}
-                >
-                  {children}
-                </p>
-              );
-            },
-
+            // p: ({ children, ...props }) => {
+            //   // Verificar si alguno de los hijos es un elemento <pre> (o un componente que renderiza <pre>)
+            //   const shouldFragment = React.Children.toArray(children).some(
+            //     (child) => React.isValidElement(child) && child.type === "pre",
+            //   );
+            //
+            //   if (shouldFragment) {
+            //     return <>{children}</>;
+            //   }
+            //
+            //   return (
+            //     <p
+            //       className="text-base text-neutral-700 dark:text-neutral-300 leading-relaxed mb-4 ml-4"
+            //       {...props}
+            //     >
+            //       {children}
+            //     </p>
+            //   );
+            // },
+            //
             code({ node, inline, className, children, ...props }) {
               const content = Array.isArray(children)
                 ? children.join("")
@@ -101,11 +101,9 @@ export function BotMessage({ content }: { content: string }) {
               }
 
               return (
-                <div className="mb-4">
-                  <Code language={(match && match[1]) || ""}>
-                    {processedContent.replace(/\n$/, "")}
-                  </Code>
-                </div>
+                <Code language={(match && match[1]) || ""}>
+                  {processedContent.replace(/\n$/, "")}
+                </Code>
               );
             },
             strong: ({ node, ...props }) => (
