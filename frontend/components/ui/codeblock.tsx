@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect } from "react";
+import { useEffect, useRef } from "react";
 import Prism from "prismjs";
 import "prismjs/themes/prism-tomorrow.css";
 import "prismjs/components/prism-javascript";
@@ -16,13 +16,19 @@ interface CodeProps {
 }
 
 export function Code({ children, language }: CodeProps) {
+  const codeElement = useRef<HTMLElement>(null);
+
   useEffect(() => {
-    Prism.highlightAll();
-  }, []);
+    if (codeElement.current) {
+      Prism.highlightElement(codeElement.current);
+    }
+  }, [children, language]);
 
   return (
     <pre className="rounded-md bg-gray-800 p-4">
-      <code className={`language-${language}`}>{children}</code>
+      <code ref={codeElement} className={`language-${language}`}>
+        {children}
+      </code>
     </pre>
   );
 }
