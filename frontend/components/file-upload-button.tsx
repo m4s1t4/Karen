@@ -132,11 +132,32 @@ export function FileUploadButton({
       setStage("uploading");
       const progressInterval = simulateProgress();
 
+      // Si no hay un chat activo, crear uno nuevo
+      let chatIdToUse: number;
+      if (!currentChatId) {
+        // Crear un nuevo chat
+        const response = await fetch(
+          "http://localhost:5000/api/assistant/chat/start",
+          {
+            method: "POST",
+          }
+        );
+        if (!response.ok) {
+          throw new Error("Error al crear un nuevo chat");
+        }
+        const data = await response.json();
+        if (!data.session_id) {
+          throw new Error("No se recibió un ID de sesión válido");
+        }
+        chatIdToUse = data.session_id;
+        setCurrentChat(chatIdToUse);
+      } else {
+        chatIdToUse = currentChatId;
+      }
+
       const formData = new FormData();
       formData.append("file", file);
-      if (currentChatId) {
-        formData.append("chat_id", currentChatId.toString());
-      }
+      formData.append("chat_id", chatIdToUse.toString());
 
       const response = await fetch(
         "http://localhost:5000/api/assistant/upload",
@@ -152,19 +173,28 @@ export function FileUploadButton({
       }
 
       const data = await response.json();
+
+      // Actualizar el chat_id si el servidor retornó uno nuevo
+      if (
+        data.file_info &&
+        data.file_info.chat_id &&
+        data.file_info.chat_id !== chatIdToUse
+      ) {
+        console.log(
+          `Actualizando chat_id de ${chatIdToUse} a ${data.file_info.chat_id}`
+        );
+        setCurrentChat(data.file_info.chat_id);
+        chatIdToUse = data.file_info.chat_id;
+      }
+
       clearInterval(progressInterval);
       setUploadProgress(100);
       setStage("complete");
 
-      // Si se creó un nuevo chat, actualizar el ID
-      if (data.chat_id && !currentChatId) {
-        setCurrentChat(data.chat_id);
-      }
-
       toast({
         title: "¡Archivo subido!",
         description: "El archivo PDF ha sido procesado y está listo para usar",
-        variant: "success",
+        variant: "default",
         duration: 3000,
         className: "bg-green-50 border-green-200",
       });

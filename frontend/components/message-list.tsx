@@ -8,6 +8,7 @@ import remarkMath from "remark-math";
 import rehypeKatex from "rehype-katex";
 import rehypeHighlight from "rehype-highlight";
 import { useEffect, useRef } from "react";
+import { BotMessage } from "./message";
 
 interface MessageListProps {
   messages: Message[];
@@ -41,40 +42,7 @@ export function MessageList({ messages, isLoading }: MessageListProps) {
               }`}
             >
               {message.role === "assistant" ? (
-                <ReactMarkdown
-                  className="text-sm prose dark:prose-invert max-w-none prose-p:leading-relaxed prose-pre:p-0"
-                  remarkPlugins={[remarkGfm, remarkMath]}
-                  rehypePlugins={[rehypeKatex, rehypeHighlight]}
-                  components={{
-                    p: ({ children }) => (
-                      <p className="mb-2 last:mb-0">{children}</p>
-                    ),
-                    pre: ({ children }) => (
-                      <pre className="bg-secondary/50 rounded-md p-4 overflow-x-auto">
-                        {children}
-                      </pre>
-                    ),
-                    code: ({ inline, className, children, ...props }) => {
-                      if (inline) {
-                        return (
-                          <code
-                            className="bg-secondary/50 rounded-sm px-1 py-0.5"
-                            {...props}
-                          >
-                            {children}
-                          </code>
-                        );
-                      }
-                      return (
-                        <code className={className} {...props}>
-                          {children}
-                        </code>
-                      );
-                    },
-                  }}
-                >
-                  {message.content}
-                </ReactMarkdown>
+                <BotMessage content={message.content} />
               ) : (
                 <p className="text-sm">{message.content}</p>
               )}
@@ -90,7 +58,7 @@ export function MessageList({ messages, isLoading }: MessageListProps) {
                   <div className="flex items-center gap-2">
                     <Loader2 className="h-3 w-3 animate-spin" />
                     <span className="text-sm text-muted-foreground">
-                      Karen está escribiendo
+                      Pensando
                     </span>
                   </div>
                   <div className="space-y-2">

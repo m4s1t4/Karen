@@ -68,12 +68,11 @@ export function ChatSidebar({
       {/* Sidebar */}
       <div
         className={cn(
-          "fixed inset-y-0 left-0 z-50 flex w-[400px] flex-col bg-background/80 backdrop-blur-md backdrop-saturate-150 transition-transform duration-300 ease-in-out supports-[backdrop-filter]:bg-background/60",
+          "fixed inset-y-0 left-0 z-50 flex w-[400px] flex-col backdrop-blur-md backdrop-saturate-150 transition-transform duration-300 ease-in-out supports-[backdrop-filter]:bg-background/60",
           isOpen ? "translate-x-0" : "-translate-x-full"
         )}
       >
         <div className="flex h-14 items-center justify-between px-4 backdrop-blur-sm">
-          <h2 className="text-lg font-semibold">Mis Conversaciones</h2>
           <Button
             variant="ghost"
             size="icon"
