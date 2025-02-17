@@ -1,28 +1,28 @@
-'use client'
+"use client";
 
-import { cn } from "@/lib/utils"
+import { useEffect } from "react";
+import Prism from "prismjs";
+import "prismjs/themes/prism-tomorrow.css";
+import "prismjs/components/prism-javascript";
+import "prismjs/components/prism-jsx";
+import "prismjs/components/prism-typescript";
+import "prismjs/components/prism-tsx";
+import "prismjs/components/prism-css";
+import "prismjs/components/prism-python";
 
-interface CodeBlockProps {
-  language: string
-  value: string
+interface CodeProps {
+  children: string;
+  language: string;
 }
 
-export function CodeBlock({
-  language,
-  value,
-  ...props
-}: CodeBlockProps) {
+export function Code({ children, language }: CodeProps) {
+  useEffect(() => {
+    Prism.highlightAll();
+  }, []);
+
   return (
-    <pre
-      className={cn(
-        "bg-zinc-800/50 rounded p-2 overflow-x-auto",
-        language && "language-" + language
-      )}
-      {...props}
-    >
-      <code className={cn("text-sm", language && "language-" + language)}>
-        {value}
-      </code>
+    <pre className="rounded-md bg-gray-800 p-4">
+      <code className={`language-${language}`}>{children}</code>
     </pre>
-  )
+  );
 }
