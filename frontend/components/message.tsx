@@ -1,4 +1,5 @@
 "use client";
+import React from "react";
 import { MemoizedReactMarkdown } from "@/components/ui/markdown";
 import rehypeExternalLinks from "rehype-external-links";
 import remarkGfm from "remark-gfm";
@@ -57,17 +58,13 @@ export function BotMessage({ content }: { content: string }) {
             //     </p>
             //   );
             // },
-            p: ({ node, children, ...props }) => {
-              // Revisamos si en el array de hijos hay un "code" o "pre"
-              const hasBlockElement =
-                Array.isArray(node.children) &&
-                node.children.some(
-                  (child: any) =>
-                    child.tagName === "pre" || child.tagName === "code",
-                );
+            p: ({ children, ...props }) => {
+              // Verificar si alguno de los hijos es un elemento <pre> (o un componente que renderiza <pre>)
+              const shouldFragment = React.Children.toArray(children).some(child =>
+                React.isValidElement(child) && child.type === "pre"
+              );
 
-              // Si detecta un bloque de código, no envuelvas en <p>
-              if (hasBlockElement) {
+              if (shouldFragment) {
                 return <>{children}</>;
               }
 
