@@ -51,32 +51,26 @@ export function BotMessage({ content }: { content: string }) {
                 {...props}
               />
             ),
-            // p: ({ children }) => {
-            //   return (
-            //     <p className="text-base text-neutral-700 dark:text-neutral-300 leading-relaxed mb-4 ml-4">
-            //       {children}
-            //     </p>
-            //   );
-            // },
-            // p: ({ children, ...props }) => {
-            //   // Verificar si alguno de los hijos es un elemento <pre> (o un componente que renderiza <pre>)
-            //   const shouldFragment = React.Children.toArray(children).some(
-            //     (child) => React.isValidElement(child) && child.type === "pre",
-            //   );
-            //
-            //   if (shouldFragment) {
-            //     return <>{children}</>;
-            //   }
-            //
-            //   return (
-            //     <p
-            //       className="text-base text-neutral-700 dark:text-neutral-300 leading-relaxed mb-4 ml-4"
-            //       {...props}
-            //     >
-            //       {children}
-            //     </p>
-            //   );
-            // },
+            p: ({ children, ...props }) => {
+              // Si alguno de los hijos es un elemento <pre>, renderizamos sin un contenedor <p>
+              const shouldFragment = React.Children.toArray(children).some(
+                (child) =>
+                  React.isValidElement(child) && child.type === "pre"
+              );
+
+              if (shouldFragment) {
+                return <>{children}</>;
+              }
+
+              return (
+                <p
+                  className="text-base text-neutral-700 dark:text-neutral-300 leading-relaxed mb-4 ml-4"
+                  {...props}
+                >
+                  {children}
+                </p>
+              );
+            },
             //
             code({ node, inline, className, children, ...props }) {
               const content = Array.isArray(children)
