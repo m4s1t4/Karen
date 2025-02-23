@@ -2,21 +2,12 @@ import os
 import time
 import logging
 from pathlib import Path
-from typing import List, Dict, Any, Tuple
-from functools import lru_cache
-from concurrent.futures import ThreadPoolExecutor, as_completed
-import tenacity
-from tqdm import tqdm
-import numpy as np
-
+from typing import List
 from langchain.text_splitter import RecursiveCharacterTextSplitter
 from langchain_openai import OpenAIEmbeddings, ChatOpenAI
 from langchain_community.document_loaders import PyPDFDirectoryLoader
 from langchain_community.vectorstores.supabase import SupabaseVectorStore
 from langchain.schema import Document
-from langchain_core.prompts import PromptTemplate
-from langchain_core.runnables import RunnablePassthrough
-from langchain_core.output_parsers import StrOutputParser
 from supabase.client import Client, create_client
 
 import dotenv
@@ -363,106 +354,3 @@ class OptimizedRAG:
 
         except Exception as e:
             logger.error(f"Error procesando archivo {file_path}: {e}")
-            raise
-
-    def query(self, question: str, chat_id: int) -> str:
-        """Realiza una búsqueda semántica en la base de datos vectorial."""
-        try:
-            logger.info(f"Buscando documentos relevantes para chat {chat_id}")
-            # Realizar búsqueda de similitud
-            relevant_docs = self.vector_store.similarity_search_with_relevance_scores(
-                question,
-                k=4,  # Número de documentos a recuperar
-                filter={
-                    "metadata": {"chat_id": chat_id}
-                },  # Filtrar por chat_id en metadata
-            )
-
-            if not relevant_docs:
-                return "No encontré información relevante para responder tu pregunta."
-
-            # Formatear el contexto con los documentos relevantes
-            formatted_context = []
-            for i, (doc, score) in enumerate(relevant_docs, 1):
-                # Solo incluir documentos con score mayor a 0.7 para asegurar relevancia
-                if score > 0.7:
-                    # Incluir metadata relevante en el contexto
-                    source_info = ""
-                    if doc.metadata.get("source"):
-                        from pathlib import Path
-
-                        filename = Path(doc.metadata["source"]).name
-                        source_info = f" [Fuente: {filename}]"
-                    if doc.metadata.get("page"):
-                        source_info += f" [Página: {doc.metadata['page']}]"
-
-                    chunk_text = f"[Fragmento {i}] (Relevancia: {score:.2f}){source_info}\n{doc.page_content}\n"
-                    formatted_context.append(chunk_text)
-
-            if not formatted_context:
-                return "Aunque encontré algunos documentos, no son lo suficientemente relevantes para tu pregunta. ¿Podrías reformularla?"
-
-            context = "\n".join(formatted_context)
-
-            # Crear prompt mejorado
-            prompt = PromptTemplate(
-                template="""Utiliza el siguiente contexto para responder la pregunta.
-                Si la información no está en el contexto, di "No tengo suficiente información para responder esa pregunta específica".
-
-                Reglas:
-                1. SIEMPRE cita los fragmentos específicos usando [Fragmento X] cuando uses información de ellos
-                2. Si la información está dispersa en varios fragmentos, combínalos de manera coherente
-                3. Si hay información contradictoria entre fragmentos, señálalo explícitamente
-                4. Mantén un tono profesional y claro
-                5. Si la pregunta tiene múltiples partes, responde cada una por separado
-                6. NO inventes información que no esté en los fragmentos
-                7. Si un fragmento tiene información de una página específica, inclúyela en la cita
-
-                Contexto:
-                {context}
-
-                Pregunta: {question}
-
-                Respuesta:""",
-                input_variables=["context", "question"],
-            )
-
-            # Crear y ejecutar cadena RAG
-            chain = (
-                {
-                    "context": lambda x: context,
-                    "question": RunnablePassthrough(),
-                }
-                | prompt
-                | self.llm
-                | StrOutputParser()
-            )
-
-            response = chain.invoke(question)
-            logger.info("Respuesta generada exitosamente")
-
-            # Agregar un resumen de las fuentes utilizadas
-            used_chunks = set()
-            import re
-
-            for match in re.finditer(r"\[Fragmento (\d+)\]", response):
-                used_chunks.add(int(match.group(1)))
-
-            if used_chunks:
-                response += "\n\n---\nFuentes utilizadas:\n"
-                for chunk_num in sorted(used_chunks):
-                    if chunk_num <= len(relevant_docs):
-                        doc, score = relevant_docs[chunk_num - 1]
-                        source_info = ""
-                        if doc.metadata.get("source"):
-                            filename = Path(doc.metadata["source"]).name
-                            source_info = f"[Archivo: {filename}]"
-                        if doc.metadata.get("page"):
-                            source_info += f" [Página: {doc.metadata['page']}]"
-                        response += f"\n[Fragmento {chunk_num}] {source_info} (Relevancia: {score:.2f})"
-
-            return response
-
-        except Exception as e:
-            logger.error(f"Error en consulta: {e}")
-            return "Lo siento, hubo un error procesando tu pregunta. Por favor, intenta de nuevo."
